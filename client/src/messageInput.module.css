@@ -1,0 +1,12 @@
+input[type=text] {
+	width: 80%;
+	padding: 12px 20px;
+	margin-right: 8px;
+	box-sizing: border-box;
+}
+
+button{
+    background-color: white;
+    color:tomato;
+    padding: 10px;
+}
