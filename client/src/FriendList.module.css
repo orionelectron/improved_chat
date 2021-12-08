@@ -1,6 +1,9 @@
 .friend_container{
     display: flex;
     flex-direction: column;
+    height: 100%;
+    background-color: cadetblue;
+    width: 30%;
     
     
 }
@@ -8,5 +11,5 @@
     padding: 10px;
     background-color: tomato;
     color: white;
-    width: 100%
+    width: auto;
 }

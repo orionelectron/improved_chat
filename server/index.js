@@ -14,6 +14,7 @@ const redisAdapter = createAdapter(pubClient, subClient);
 
 
 const sessionStore = new InMemorySessionStore();
+const messageStore = new InMemoryMessageStore();
 const httpServer = createServer();
 const chatServer = new Server(httpServer, {
     cors: {
@@ -28,87 +29,89 @@ const chatServer = new Server(httpServer, {
 
 
 chatServer.use(async (socket, next) => {
-    console.log("SessionStore", sessionStore);
-    const session = socket.handshake.auth.session;
-    console.log(session);
-    try {
+    const sessionID = socket.handshake.auth.sessionID;
+    if (sessionID) {
+        const session = sessionStore.findSession(sessionID);
         if (session) {
-            const uname = sessionStore.findSession(session.sessionID).username;
-            console.log(uname);
-            socket.sessionID = session.sessionID;
+            socket.sessionID = sessionID;
             socket.userID = session.userID;
-            socket.username = uname;
-            socket.connected = true;
-            sessionStore.saveSession(socket.sessionID, { sessionID: socket.sessionID, userID: socket.userID, username: socket.username, connected: true });
+            socket.username = session.username;
             return next();
         }
-
-        else if (!socket.handshake.auth.username) {
-            return next(new Error("Invalid Username"));
-        }
-        else {
-            socket.username = socket.handshake.auth.username;
-            socket.sessionID = uuidv4();
-            socket.userID = uuidv4();
-            socket.connected = true;
-            sessionStore.saveSession(socket.sessionID, { sessionID: socket.sessionID, userID: socket.userID, username: socket.username, connected: true });
-            return next();
-        }
-
-
-        //console.log("SessionStore", sessionStore);
-        
     }
-    catch (ex) {
-        console.log("Error: ", ex);
-        return next(new Error("Got a unique error!!"));
-    }
+    const username = socket.handshake.auth.username;
+    if (!username)
+        return next(new Error("Invalid Username"));
+
+    socket.sessionID = uuidv4();
+    socket.userID = uuidv4();
+    socket.username = username;
+    next()
+
+
+
 
 });
 
 chatServer.on("connection", (socket) => {
-    console.log("A client connected ", socket.id);
+    console.log("A client connected ", socket.userID);
+    sessionStore.saveSession(socket.sessionID, {
+        userID: socket.userID,
+        username: socket.username,
+        connected: true,
+    })
+    socket.emit("session", {
+        sessionID: socket.sessionID,
+        userID: socket.userID,
+    });
     socket.join(socket.userID);
 
     const users = [];
 
     const sessions = sessionStore.findAllSessions();
+    let messages = messageStore.findMessagesForUserID(socket.userID);
+    console.log("MessagesForUserID ",messages )
+    const messagesPerUser = new Map();
+    messages.forEach((message) => {
+        const { from, to } = message;
+        const otherUser = socket.userID === from ? to : from;
+        if (messagesPerUser.has(otherUser)) {
+            messagesPerUser.get(otherUser).push(message);
+        } else {
+            messagesPerUser.set(otherUser, [message]);
+        }
+    });
+
     sessions.forEach((session) => {
+        let messages = messagesPerUser.get(session.userID);
+        
         users.push({
             userID: session.userID,
             username: session.username,
-            connected: session.connected
+            connected: session.connected,
+            messages:  messages !== undefined? messages: []
+
         });
     })
 
-    socket.emit("session", {
-        sessionID: socket.sessionID,
-        userID: socket.userID,
-    });
     socket.emit("users", users);
+
     socket.broadcast.emit("new_user", {
         userID: socket.userID,
         username: socket.username,
         connected: true
     });
 
-    socket.on("private_message", ({ content, to }) => {
-        socket.broadcast.to(to).emit("private_message", {
-            content,
-            from: socket.userID
-        })
-    });
-    socket.on("sync", () => {
-        const users = [];
+    socket.on("private_message", ({ message, to }) => {
+        console.log(message, to);
+        const new_message = { message, to, from: socket.userID };
+       // socket.to(to).to(socket.userID).emit("private_message", new_message)
+        chatServer.to(to).emit("private_message", new_message);
+        messageStore.saveMessage(new_message);
+        console.log(messageStore);
 
-        for (let [id, socket] of chatServer.of('/').sockets) {
-            users.push({
-                userID: id,
-                username: socket.username,
-            });
-        }
-        socket.emit("users", users);
-    })
+    });
+
 
     socket.on("disconnect", async () => {
         const clients = await chatServer.in(socket.userID).allSockets();

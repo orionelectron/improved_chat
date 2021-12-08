@@ -2,19 +2,17 @@ import React, { useState, useContext, useEffect } from 'react';
 import './messageInput.module.css';
 import SocketContext from "./socketContext.js";
 
-function MessageInput(){
+function MessageInput(props){
     const [message, setMessage] = useState("");
     const socket = useContext(SocketContext);
-    useEffect(() => {
-        socket.emit("fetch_messages");
-        socket.on("messages", () => {
-            console.log("Received Initial messages!!");
-        });
-    },[]);
+    
     const preventDefault = (e) => {
         e.preventDefault();
+        const selectedID = props.selectedID
+        
+        console.log(props.selectedID);
         console.log("message submitted");
-        //socket.emit("message", {message, to: props.friend, from: socket.username});
+        socket.emit("private_message", {message, to: selectedID, from: socket.userID});
         setMessage('');
 
     }

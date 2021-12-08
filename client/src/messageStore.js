@@ -2,7 +2,7 @@ class MessageStore{
     saveMessage(message) {
 
     }
-    findMessageForUser(userID){
+    findMessageForUserID(userID){
 
     }
 }
@@ -15,9 +15,14 @@ class InMemoryMessageStore extends MessageStore{
         this.messages.push(message);
     }
     findMessagesForUserID(userID){
-        return this.messages.filter((message) => {
-            return message.from === userID || message.to === userID
+        const filtered = this.messages.filter((message) => {
+            return (message.from === userID || message.to === userID)
         });
+        
+        return filtered;
+    }
+    getAllMessages(){
+        return this.messages;
     }
 }
 
