@@ -2,11 +2,14 @@
 import React from "react";
 import  ReactDOM  from "react-dom";
 import App from './App.js';
-import socket from "./socket.js";
-import SocketContext from "./socketContext.js";
+
+import store from './redux/store.js';
+import {Provider} from 'react-redux';
 
 ReactDOM.render(
-<SocketContext.Provider value={socket}> 
-    <App/>
-</SocketContext.Provider>, document.getElementById("root"));
+    <Provider store={store}>
+        <App/>
+    </Provider>
+    
+, document.getElementById("root"));
 

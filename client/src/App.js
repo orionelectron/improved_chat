@@ -1,18 +1,41 @@
 import React, { useState, useEffect } from "react";
 import styles from './App.module.css';
+import { useDispatch, useSelector } from "react-redux";
 import socket from './socket.js';
 //import Friendlist from "./FriendList.js";
 //import SocketContext from "./socketContext.js";
 //import SelectUsername from "./SelectUsername.js";
 //import MessageInput from "./messageInput.js";
 //import MessageList from "./messageList.js";
+import {
+    selectedIDSet,
+    messageSet,
+    usersSet,
+    usersMessagesUpdate,
+    receivedMessageUserUpdate,
+    updateUsersAfterDisconnect,
+    addNewUser
+} from "./redux/store.js"
 
 let prev_users = [];
 function App() {
+    const dispatch = useDispatch();
+    const messages = useSelector((state) => {
+        console.log("Initial messages ", state.state.messages)
+        return state.state.messages;
+    });
+    const selectedID = useSelector((state) => {
+        console.log("Initial selectedID ", state.state.selectedID)
+        return state.state.selectedID;
+    });
+    const users = useSelector((state) => {
+        console.log("Initial users ", state.state.users)
+        return state.state.users
+    });
+    console.log("Initial users ", users)
     let sessionID = localStorage.getItem("sessionID");
     const [hasUsername, setUsernameStatus] = useState(false);
-    const [users, setUsers] = useState(prev_users);
-    const [state, setState] = useState({selectedID: '', messages: []})
+
     const ref = React.createRef();
     const ref2 = React.createRef();
 
@@ -24,35 +47,28 @@ function App() {
         setUsernameStatus(true);
 
     };
-    const selectedFriend = (userID, messages) => {
-        setState((prevState) => {
-            return {selectedID: userID, messages: messages}
-        });
+    const selectedFriend = ({to, currentUser}) => {
+        dispatch(messageSet({to, currentUser}))
+        dispatch(selectedIDSet(to));
+        
+        
+
     };
     const sendMessage = (e) => {
         e.preventDefault();
-        const selectedID = state.selectedID;
-        const message = {message: ref2.current.value, to: selectedID, from: socket.userID}
-        
-        const mappedFriendlist = users.map((user) => {
-            if (user.userID === selectedID || user.userID === socket.userID){
-                user.messages.push(message);
-            }
-        })
-    
 
-        
-        
-        console.log(selectedID);
+        const message = { message: ref2.current.value, to: selectedID, from: socket.userID };
+
+
         console.log("message submitted");
         socket.emit("private_message", message);
-        setUsers(() => {
-            return [...mappedFriendlist]
-        })
-        
+        dispatch(usersMessagesUpdate(message));
+
+
+
 
     }
-    
+
 
 
     useEffect(() => {
@@ -78,61 +94,37 @@ function App() {
         }
     }, []);
     useEffect(() => {
-        
-       
+
+
         socket.on("users", (users1) => {
-            console.log("FriendList ", users1);
-            setUsers((prevState) => {
-                return [...prevState, ...users1]
-            });
+            dispatch(usersSet(users1));
         });
 
-       
+
         socket.on("private_message", (message) => {
             console.log("private_message ", message);
             const forUserID = message.to;
+            const prevUsersState = users;
+            dispatch(receivedMessageUserUpdate({message, currentUser: socket.userID}));
 
-            setUsers((prevUsersState) => {
-                const new_state = prevUsersState.map((user) => {
-                    if (user.userID === forUserID){
-                        user.messages.push(message)
-                        
-                       
-                    }
-                    return user;
-                });
-                return [...new_state]
-            });
-            
+
+
         })
 
         socket.on("new_user", (new_user) => {
             console.log("New user received ", new_user);
-            let new_user1 = new_user;
-            if (new_user1.messages === undefined)
-                new_user1.messages = []
-            setUsers((prevState) => {
-                const filtered = prevState.filter((user) => {
-                    return user.userID !== new_user.userID
-                });
+           
+           
 
-                return [...filtered, new_user1]
-            });
+            
+            dispatch(addNewUser(new_user));
         });
+
         socket.on("client_disconnected", (userID) => {
             console.log("A client got disconneted!!", userID);
+            dispatch(updateUsersAfterDisconnect({userID, connected: false}));
 
 
-
-            setUsers((prevState) => {
-                const updated = prevState.map((user) => {
-                    if (user.userID === userID) {
-                        user.connected = false;
-                    }
-                    return user;
-                });
-                return updated;
-            });
 
         })
 
@@ -175,14 +167,14 @@ function App() {
                     <div className={styles.friend_container}>
 
                         {users.map((user, index) => {
-                                    console.log("user",user);
-                            return <p onClick={() => selectedFriend(user.userID, user.messages)} className={styles.friend} key={index} > {socket.userID == user.userID ? "Yourself" : user.username}  Status: {user.connected ? "Online" : "Offline"} </p>
+                            console.log("user", user);
+                            return <p onClick={() => selectedFriend({to: user.userID, currentUser: socket.userID})} className={styles.friend} key={index} > {socket.userID == user.userID ? "Yourself" : user.username}  Status: {user.connected ? "Online" : "Offline"} </p>
                         })}
                     </div>
                     <div className={styles.messsage_container}>
                         {
-                            state.messages.map((message, index) => {
-                                if (message.to ===state.selectedID || message.from === state.selectedID) {
+                            messages.map((message, index) => {
+                                if (message.to === selectedID || message.from === selectedID) {
                                     return <p key={index} className={socket.userID === message.from ? styles.message_from : styles.message_to}> {message.message} </p>
                                 }
                                 return null
@@ -191,7 +183,7 @@ function App() {
                     </div>
                 </div>
                 <form onSubmit={sendMessage}>
-                    <input ref={ref2} type="text" placeholder="Message"  />
+                    <input ref={ref2} type="text" placeholder="Message" />
                     <button> Send Message </button>
                 </form>
             </div>

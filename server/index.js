@@ -99,7 +99,8 @@ chatServer.on("connection", (socket) => {
     socket.broadcast.emit("new_user", {
         userID: socket.userID,
         username: socket.username,
-        connected: true
+        connected: true,
+        messages: []
     });
 
     socket.on("private_message", ({ message, to }) => {
@@ -115,15 +116,19 @@ chatServer.on("connection", (socket) => {
 
     socket.on("disconnect", async () => {
         const clients = await chatServer.in(socket.userID).allSockets();
+        console.log("Clients size ", clients.size)
         const isDisconnected = clients.size === 0;
-        if (isDisconnected)
+
+        if (isDisconnected){
             socket.broadcast.emit("client_disconnected", socket.userID);
-        sessionStore.saveSession(socket.sessionID, {
-            userID: socket.userID,
-            sessionID: socket.sessionID,
-            username: socket.username,
-            connected: false
-        });
+            sessionStore.saveSession(socket.sessionID, {
+                userID: socket.userID,
+                sessionID: socket.sessionID,
+                username: socket.username,
+                connected: false
+            });
+        }
+       
 
 
     })
